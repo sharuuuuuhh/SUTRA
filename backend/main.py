@@ -42,6 +42,10 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 # ----------------- CONFIG & USER PROFILE -----------------
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "service": "Sutra API"}
+
 @app.get("/api/config")
 def get_client_config():
     """Provides public Supabase configuration for the frontend SDK."""
