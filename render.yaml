@@ -12,8 +12,8 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: DAILY_LIMIT
-        value: 10
+        value: 10000
       - key: MAX_OUTPUT_TOKENS
-        value: 8000
+        value: 800000
       - key: MAX_FILE_MB
-        value: 20
+        value: 100
