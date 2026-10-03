@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en" class="anim">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sutra Workspace: KTU Study Companion</title>
+  <meta name="description" content="AI Study Companion Workspace for KTU B.Tech Students.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+  <script>
+    (function() {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('rm');
+        document.documentElement.classList.remove('anim');
+      }
+    })();
+  </script>
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="app-topbar">
+      <a href="/app.html" class="nav-logo" id="app-logo-link">
+        <span>Sutra</span>
+        <span class="logo-badge">KTU B.Tech</span>
+      </a>
+
+      <div style="display: flex; align-items: center; gap: 1.25rem;">
+        <div class="quota-indicator" id="quota-display" title="Daily free AI generation allowance">
+          <span class="quota-dot" id="quota-dot"></span>
+          <span id="quota-text">...</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-weight: 600; font-size: 0.92rem; color: var(--color-ink);" id="user-display-name">Student</span>
+          <button type="button" class="btn btn-ghost" id="logout-btn" style="padding: 0.4rem 0.8rem; font-size: 0.88rem;">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="app-body">
+      <!-- Left Rail Sidebar -->
+      <aside class="app-rail" aria-label="Study modes">
+        <button type="button" class="rail-btn active" data-view="simplify" id="rail-btn-simplify">
+          <span>📖</span>
+          <span>Simplify notes</span>
+        </button>
+        <button type="button" class="rail-btn" data-view="predict" id="rail-btn-predict">
+          <span>🎯</span>
+          <span>Predict the paper</span>
+        </button>
+        <button type="button" class="rail-btn" data-view="history" id="rail-btn-history">
+          <span>📁</span>
+          <span>Study history</span>
+        </button>
+      </aside>
+
+      <!-- App Main Canvas -->
+      <main class="app-main" id="app-main">
+
+        <!-- VIEW 1: SIMPLIFY NOTES FORM -->
+        <section id="simplify-panel" class="form-panel">
+          <div class="panel-header">
+            <h2>Simplify your lecture notes</h2>
+            <p>Upload your messy notes. Add the syllabus if you want a complete topic coverage audit and gap analysis.</p>
+          </div>
+
+          <form id="form-simplify">
+            <!-- Notes Dropzone (Required) -->
+            <div class="form-group">
+              <label class="form-label">Lecture notes (Required)</label>
+              <div class="dropzone" data-zone-id="simplify-notes" tabindex="0" role="button" aria-label="Upload lecture notes">
+                <div class="dropzone-icon">📄</div>
+                <div class="dropzone-label">Click or drag & drop lecture notes</div>
+                <div class="dropzone-hint">PDF, DOCX, TXT, MD, or clear camera photos (PNG, JPG, WEBP) &bull; Max 20MB per file</div>
+                <input type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" style="display: none;">
+              </div>
+              <div id="simplify-notes-chips" class="file-chips-list"></div>
+            </div>
+
+            <!-- Syllabus Dropzone (Optional) -->
+            <div class="form-group">
+              <label class="form-label">KTU syllabus document (Optional)</label>
+              <div class="dropzone" data-zone-id="simplify-syllabus" tabindex="0" role="button" aria-label="Upload KTU syllabus">
+                <div class="dropzone-icon">📋</div>
+                <div class="dropzone-label">Add syllabus for module coverage map & gap flagging</div>
+                <div class="dropzone-hint">PDF, DOCX, TXT, or images &bull; Max 20MB</div>
+                <input type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" style="display: none;">
+              </div>
+              <div id="simplify-syllabus-chips" class="file-chips-list"></div>
+            </div>
+
+            <!-- Subject name -->
+            <div class="form-group">
+              <label for="simplify-subject" class="form-label">Subject name or course code</label>
+              <input type="text" id="simplify-subject" class="form-input" placeholder="e.g. CST301 Operating Systems (Module 3)">
+            </div>
+
+            <!-- Depth Segmented Control -->
+            <div class="form-group">
+              <label class="form-label">Revision depth</label>
+              <div class="segmented-control" data-field="simplify-depth">
+                <button type="button" class="segmented-btn" data-value="simple">Simple (Analogy & basics)</button>
+                <button type="button" class="segmented-btn active" data-value="standard">Standard (Formulas & examples)</button>
+                <button type="button" class="segmented-btn" data-value="exam">Exam-ready (14-mark detail)</button>
+              </div>
+            </div>
+
+            <!-- Language Select -->
+            <div class="form-group">
+              <label for="simplify-language" class="form-label">Language style</label>
+              <select id="simplify-language" class="form-select">
+                <option value="english" selected>English (Crisp technical language)</option>
+                <option value="english_malayalam">English with Malayalam conceptual hints [മലയാളം]</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 1rem;" id="simplify-submit-btn">
+              Simplify my notes
+            </button>
+          </form>
+        </section>
+
+        <!-- VIEW 2: PREDICT THE PAPER FORM -->
+        <section id="predict-panel" class="form-panel" style="display: none;">
+          <div class="panel-header">
+            <h2>Predict the question paper</h2>
+            <p>Upload university question papers from previous series along with your notes or syllabus to forecast recurring KTU question patterns.</p>
+          </div>
+
+          <form id="form-predict">
+            <!-- Past Papers Dropzone (Required) -->
+            <div class="form-group">
+              <label class="form-label">Previous year question papers (Required)</label>
+              <div class="dropzone" data-zone-id="predict-past_questions" tabindex="0" role="button" aria-label="Upload previous question papers">
+                <div class="dropzone-icon">📑</div>
+                <div class="dropzone-label">Click or drag & drop past KTU question papers</div>
+                <div class="dropzone-hint">Upload 1 to 5 past university papers (PDF, PNG, JPG) &bull; Max 20MB per file</div>
+                <input type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" style="display: none;">
+              </div>
+              <div id="predict-past_questions-chips" class="file-chips-list"></div>
+            </div>
+
+            <!-- Notes Dropzone (Complementary) -->
+            <div class="form-group">
+              <label class="form-label">Lecture notes (Optional if syllabus is provided)</label>
+              <div class="dropzone" data-zone-id="predict-notes" tabindex="0" role="button" aria-label="Upload notes for prediction calibration">
+                <div class="dropzone-icon">📄</div>
+                <div class="dropzone-label">Add lecture notes to calibrate question scope</div>
+                <div class="dropzone-hint">PDF, DOCX, TXT, MD, or photos &bull; Max 20MB</div>
+                <input type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" style="display: none;">
+              </div>
+              <div id="predict-notes-chips" class="file-chips-list"></div>
+            </div>
+
+            <!-- Syllabus Dropzone (Complementary) -->
+            <div class="form-group">
+              <label class="form-label">KTU syllabus document (Optional if notes are provided)</label>
+              <div class="dropzone" data-zone-id="predict-syllabus" tabindex="0" role="button" aria-label="Upload syllabus for prediction calibration">
+                <div class="dropzone-icon">📋</div>
+                <div class="dropzone-label">Add syllabus to align question modules & marks</div>
+                <div class="dropzone-hint">PDF, DOCX, TXT &bull; Max 20MB</div>
+                <input type="file" multiple accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" style="display: none;">
+              </div>
+              <div id="predict-syllabus-chips" class="file-chips-list"></div>
+            </div>
+
+            <!-- Subject name -->
+            <div class="form-group">
+              <label for="predict-subject" class="form-label">Subject name or course code</label>
+              <input type="text" id="predict-subject" class="form-input" placeholder="e.g. MAT201 Partial Differential Equations">
+            </div>
+
+            <!-- KTU Scheme -->
+            <div class="form-group">
+              <label for="predict-scheme" class="form-label">KTU Examination Scheme</label>
+              <select id="predict-scheme" class="form-select">
+                <option value="detect" selected>Auto-detect from uploaded papers</option>
+                <option value="2024">2024 Scheme</option>
+                <option value="2019">2019 Scheme (100 Marks: Part A 30M, Part B 70M)</option>
+                <option value="2015">2015 Scheme</option>
+              </select>
+            </div>
+
+            <!-- Language Select -->
+            <div class="form-group">
+              <label for="predict-language" class="form-label">Language style</label>
+              <select id="predict-language" class="form-select">
+                <option value="english" selected>English (Crisp technical language)</option>
+                <option value="english_malayalam">English with Malayalam hints [മലയാളം]</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 1rem;" id="predict-submit-btn">
+              Predict my paper
+            </button>
+          </form>
+        </section>
+
+        <!-- VIEW 3: STUDY HISTORY -->
+        <section id="history-panel" style="display: none;">
+          <div class="panel-header" style="margin-bottom: 2rem;">
+            <h2>Your study sessions</h2>
+            <p>Access and review your previously generated study notes, coverage maps, and predicted exam papers.</p>
+          </div>
+
+          <div id="history-empty-state" style="display: none; text-align: center; padding: 4rem 1rem; background: var(--color-sheet); border-radius: var(--radius-panel); border: 1px solid var(--color-ink-border);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">📚</div>
+            <h3 style="margin-bottom: 0.5rem;">No study sessions yet</h3>
+            <p style="margin-bottom: 1.5rem;">Upload your lecture notes or previous papers to create your first session.</p>
+            <button type="button" class="btn btn-primary" onclick="switchView('simplify')">Simplify notes now</button>
+          </div>
+
+          <div id="history-items-container" class="history-grid"></div>
+        </section>
+
+        <!-- VIEW 4: READING CANVAS (RESULT VIEW) -->
+        <section id="result-panel" style="display: none;">
+          <div class="result-actions-bar">
+            <button type="button" class="btn btn-ghost" id="result-back-btn">&larr; Back to form</button>
+            <div class="btn-group">
+              <button type="button" class="btn btn-secondary" id="result-copy-btn">📋 Copy</button>
+              <button type="button" class="btn btn-secondary" id="result-download-btn">⬇️ Download .md</button>
+              <button type="button" class="btn btn-primary" id="result-print-btn">🖨️ Print / Save as PDF</button>
+            </div>
+          </div>
+
+          <article class="result-canvas" id="result-canvas">
+            <h1 id="result-title" style="margin-bottom: 1.5rem;">Study Guide</h1>
+            <div id="result-content" class="reading-content"></div>
+          </article>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay" style="display: none;">
+    <div class="loading-card">
+      <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">⚡</div>
+      <h3 style="font-size: 1.5rem; margin-bottom: 0.25rem;">Processing your study material</h3>
+      <div class="highlighter-progress-bar">
+        <div class="highlighter-progress-fill"></div>
+      </div>
+      <div id="rotating-progress-text" class="rotating-progress-text">Reading uploaded pages...</div>
+      <p style="font-size: 0.85rem; color: var(--color-ink-faint); margin-top: 1rem;">
+        Structuring notes into KTU-ready format &bull; Takes ~15–30 seconds
+      </p>
+    </div>
+  </div>
+
+  <!-- External Libraries (Supabase JS, Anime.js, Marked, DOMPurify, KaTeX) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+
+  <!-- Sutra Scripts -->
+  <script src="/js/common.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

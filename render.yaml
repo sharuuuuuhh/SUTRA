@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: sutra-ktu-companion
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DAILY_LIMIT
+        value: 10
+      - key: MAX_OUTPUT_TOKENS
+        value: 8000
+      - key: MAX_FILE_MB
+        value: 20
