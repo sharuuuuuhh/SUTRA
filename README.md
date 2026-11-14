@@ -14,6 +14,7 @@ Follow these step-by-step instructions to configure Google OAuth and Supabase Po
 3. Open [`supabase_schema.sql`](file:///C:/Users/sharu/.gemini/antigravity-ide/scratch/sutra/supabase_schema.sql) in this repository, copy the entire SQL script, paste it into the Supabase SQL Editor, and click **Run**.
    - This creates the `history` and `usage_logs` tables.
    - It enables **Row Level Security (RLS)** ensuring users can only ever access their own study sessions.
+   - It also creates a private `sutra-uploads` Storage bucket and user-scoped upload policies. Re-run the updated `supabase_schema.sql` in existing projects to enable uploads through Vercel.
 4. Go to **Project Settings &rarr; API**:
    - Copy **Project URL** &rarr; set as `SUPABASE_URL` in `.env`.
    - Copy **Project API keys: `anon` `public`** &rarr; set as `SUPABASE_ANON_KEY` in `.env`.

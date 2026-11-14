@@ -1,7 +1,8 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
+from urllib.parse import quote
 from dotenv import load_dotenv
 
 # Load .env file
@@ -11,6 +12,8 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, F
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import httpx
 
 from backend.db import (
     get_today_usage,
@@ -22,6 +25,23 @@ from backend.db import (
 )
 from backend.auth import get_current_user
 from backend.ai import generate_study_content, is_supported_file, get_file_extension
+
+STORAGE_BUCKET = "sutra-uploads"
+
+
+class StoredUpload(BaseModel):
+    path: str
+    filename: str
+    category: Literal["notes", "syllabus", "past_questions"]
+
+
+class StoredProcessRequest(BaseModel):
+    mode: str
+    subject: str = ""
+    depth: str = "standard"
+    language: str = "english"
+    scheme: str = "detect"
+    files: List[StoredUpload] = Field(default_factory=list)
 
 app = FastAPI(title="Sutra API", description="AI Study Companion for KTU B.Tech Students (Supabase Auth & RLS)")
 
@@ -192,6 +212,116 @@ async def process_study_request(
             "limit": DAILY_LIMIT
         }
     }
+
+
+@app.post("/api/process-stored")
+async def process_stored_study_request(
+    payload: StoredProcessRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Process files staged directly in Supabase Storage to avoid Vercel's body limit."""
+    used_today = get_today_usage(user["id"])
+    if used_today >= DAILY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"You have reached your daily limit of {DAILY_LIMIT} runs. Your quota resets at midnight UTC."
+        )
+
+    mode = payload.mode.lower().strip()
+    if mode not in {"simplify", "predict"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mode must be either 'simplify' or 'predict'.")
+    if mode == "simplify" and not any(item.category == "notes" for item in payload.files):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Simplify mode requires at least one lecture notes file.")
+    if mode == "predict":
+        if not any(item.category == "past_questions" for item in payload.files):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Predict mode requires at least one previous year question paper.")
+        if not any(item.category in {"notes", "syllabus"} for item in payload.files):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Predict mode requires notes or a syllabus in addition to past papers.")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    service_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not supabase_url or not service_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase Storage is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY on the server."
+        )
+
+    owned_uploads = []
+    for item in payload.files:
+        segments = item.path.split("/")
+        if len(segments) < 3 or segments[0] != str(user["id"]) or any(part in {"", ".", ".."} for part in segments):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An uploaded file path is invalid or belongs to another user.")
+        if not is_supported_file(item.filename):
+            raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=f"Unsupported file type '{item.filename}'.")
+        owned_uploads.append(item)
+
+    if not owned_uploads:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files were uploaded.")
+
+    headers = {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
+    labeled_files = []
+    labels = {"notes": "NOTES", "syllabus": "SYLLABUS", "past_questions": "PREVIOUS QUESTION PAPER"}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            for item in owned_uploads:
+                object_url = (
+                    f"{supabase_url}/storage/v1/object/{STORAGE_BUCKET}/"
+                    f"{quote(item.path, safe='/')}"
+                )
+                response = await client.get(object_url, headers=headers)
+                if response.status_code == 404:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="An uploaded file expired. Please upload it again.")
+                if response.status_code != 200:
+                    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Could not retrieve an uploaded file from Supabase Storage.")
+                if len(response.content) > MAX_FILE_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"File '{item.filename}' exceeds the maximum allowed size of {MAX_FILE_MB}MB."
+                    )
+                labeled_files.append({
+                    "filename": item.filename,
+                    "category": item.category,
+                    "label": labels[item.category],
+                    "content": response.content
+                })
+
+            title, output = await generate_study_content(
+                mode=mode,
+                subject=payload.subject,
+                depth=payload.depth,
+                language=payload.language,
+                scheme=payload.scheme,
+                labeled_files=labeled_files
+            )
+            record_usage(user["id"])
+            history_record = save_history(
+                user_id=user["id"],
+                mode=mode,
+                subject=payload.subject,
+                depth=payload.depth,
+                language=payload.language,
+                scheme=payload.scheme,
+                title=title,
+                output=output
+            )
+            return {
+                "id": history_record.get("id"),
+                "title": title,
+                "output": output,
+                "usage": {"used": get_today_usage(user["id"]), "limit": DAILY_LIMIT}
+            }
+        finally:
+            # Temporary study materials should not remain in storage after processing.
+            for item in owned_uploads:
+                object_url = (
+                    f"{supabase_url}/storage/v1/object/{STORAGE_BUCKET}/"
+                    f"{quote(item.path, safe='/')}"
+                )
+                try:
+                    await client.delete(object_url, headers=headers)
+                except httpx.HTTPError:
+                    pass
 
 # ----------------- HISTORY ENDPOINTS -----------------
 

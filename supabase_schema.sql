@@ -57,3 +57,28 @@ DROP POLICY IF EXISTS "Users can insert their own usage logs" ON public.usage_lo
 CREATE POLICY "Users can insert their own usage logs"
     ON public.usage_logs FOR INSERT
     WITH CHECK (auth.uid() = user_id);
+
+-- 7. Private temporary storage for study uploads. Files are sent directly from
+-- the browser to Supabase Storage so Vercel's 4.5MB function request limit does
+-- not apply. The backend deletes each file after processing.
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('sutra-uploads', 'sutra-uploads', false, 20971520)
+ON CONFLICT (id) DO UPDATE
+SET public = false,
+    file_size_limit = 20971520;
+
+DROP POLICY IF EXISTS "Students upload to their own Sutra folder" ON storage.objects;
+CREATE POLICY "Students upload to their own Sutra folder"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (
+        bucket_id = 'sutra-uploads'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );
+
+DROP POLICY IF EXISTS "Students delete from their own Sutra folder" ON storage.objects;
+CREATE POLICY "Students delete from their own Sutra folder"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (
+        bucket_id = 'sutra-uploads'
+        AND (storage.foldername(name))[1] = auth.uid()::text
+    );

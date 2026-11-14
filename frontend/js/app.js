@@ -277,16 +277,16 @@ function initFormSubmissions() {
       const subject = document.getElementById("simplify-subject").value;
       const language = document.getElementById("simplify-language").value;
 
-      const formData = new FormData();
-      formData.append("mode", "simplify");
-      formData.append("subject", subject);
-      formData.append("depth", appState.simplify.depth);
-      formData.append("language", language);
-
-      appState.simplify.notes.forEach(f => formData.append("notes", f));
-      appState.simplify.syllabus.forEach(f => formData.append("syllabus", f));
-
-      await executeProcess(formData);
+      await executeProcess({
+        mode: "simplify",
+        subject,
+        depth: appState.simplify.depth,
+        language,
+        scheme: "detect"
+      }, [
+        { category: "notes", files: appState.simplify.notes },
+        { category: "syllabus", files: appState.simplify.syllabus }
+      ]);
     });
   }
 
@@ -306,28 +306,59 @@ function initFormSubmissions() {
       const scheme = document.getElementById("predict-scheme").value;
       const language = document.getElementById("predict-language").value;
 
-      const formData = new FormData();
-      formData.append("mode", "predict");
-      formData.append("subject", subject);
-      formData.append("scheme", scheme);
-      formData.append("language", language);
-
-      appState.predict.past_questions.forEach(f => formData.append("past_questions", f));
-      appState.predict.notes.forEach(f => formData.append("notes", f));
-      appState.predict.syllabus.forEach(f => formData.append("syllabus", f));
-
-      await executeProcess(formData);
+      await executeProcess({ mode: "predict", subject, scheme, language, depth: "standard" }, [
+        { category: "past_questions", files: appState.predict.past_questions },
+        { category: "notes", files: appState.predict.notes },
+        { category: "syllabus", files: appState.predict.syllabus }
+      ]);
     });
   }
 }
 
-async function executeProcess(formData) {
+async function uploadStudyFiles(fileGroups) {
+  const session = await getSupabaseSession();
+  const client = await initSupabase();
+  if (!client || !session || !session.user || !session.user.id) {
+    throw new Error("Your Supabase session is unavailable. Please sign in again.");
+  }
+
+  const files = [];
+  const paths = [];
+  try {
+    for (const group of fileGroups) {
+      for (const file of group.files) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "upload";
+        const path = `${session.user.id}/${crypto.randomUUID()}/${safeName}`;
+        const { error } = await client.storage.from("sutra-uploads").upload(path, file, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false
+        });
+        if (error) {
+          throw new Error(`Could not stage "${file.name}" in Supabase Storage. ${error.message || "Check the storage bucket and upload policy."}`);
+        }
+        paths.push(path);
+        files.push({ path, filename: file.name, category: group.category });
+      }
+    }
+  } catch (error) {
+    if (paths.length) {
+      try { await client.storage.from("sutra-uploads").remove(paths); } catch (_) {}
+    }
+    throw error;
+  }
+  return { files, paths, client };
+}
+
+async function executeProcess(requestData, fileGroups) {
   showLoadingOverlay();
+  let stagedUploads = null;
 
   try {
-    const res = await apiFetch("/api/process", {
+    stagedUploads = await uploadStudyFiles(fileGroups);
+    const res = await apiFetch("/api/process-stored", {
       method: "POST",
-      body: formData
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...requestData, files: stagedUploads.files })
     });
 
     hideLoadingOverlay();
@@ -336,6 +367,14 @@ async function executeProcess(formData) {
   } catch (err) {
     hideLoadingOverlay();
     showToast(err.message || "An error occurred while processing.", "error", 7000);
+  } finally {
+    if (stagedUploads && stagedUploads.paths.length) {
+      try {
+        await stagedUploads.client.storage.from("sutra-uploads").remove(stagedUploads.paths);
+      } catch (_) {
+        // The server also removes staged files after processing.
+      }
+    }
   }
 }
 
