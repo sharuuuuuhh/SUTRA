@@ -9,6 +9,11 @@ import docx
 
 logger = logging.getLogger(__name__)
 
+# Gemini 2.5 Flash supports at most 65,536 output tokens. Clamp the deployment
+# setting here as well as in the sample configs so stale host variables cannot
+# make every generation request fail validation.
+MAX_OUTPUT_TOKENS_LIMIT = 65_536
+
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 SUPPORTED_MIME_TYPES = {
@@ -291,7 +296,11 @@ async def generate_study_content(
     # Read configuration from environment
     gemini_key = os.environ.get("GEMINI_API_KEY")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    max_tokens = int(os.environ.get("MAX_OUTPUT_TOKENS", 8000))
+    try:
+        configured_max_tokens = int(os.environ.get("MAX_OUTPUT_TOKENS", 8000))
+    except (TypeError, ValueError):
+        configured_max_tokens = 8000
+    max_tokens = min(max(configured_max_tokens, 1), MAX_OUTPUT_TOKENS_LIMIT)
     gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     claude_model = os.environ.get("CLAUDE_MODEL", "claude-3-7-sonnet-latest")
 

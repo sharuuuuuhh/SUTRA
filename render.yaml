@@ -14,6 +14,6 @@ services:
       - key: DAILY_LIMIT
         value: 1000
       - key: MAX_OUTPUT_TOKENS
-        value: 800000
+        value: 65536
       - key: MAX_FILE_MB
         value: 100
